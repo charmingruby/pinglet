@@ -6,7 +6,6 @@ import (
 	"github.com/charmingruby/pinglet/config"
 	"github.com/charmingruby/pinglet/internal/platform/httpx"
 	"github.com/charmingruby/pinglet/internal/platform/logging"
-	"github.com/go-chi/chi/v5"
 )
 
 type PingRequest struct {
@@ -20,17 +19,8 @@ type PingResponse struct {
 	CallerID   string `json:"called_id"`
 }
 
-type PongRequest struct {
-	CallerID string `json:"caller_id"`
-}
-
-type PongResponse struct {
-	Message    string `json:"message"`
-	ReceiverID string `json:"receiver_id"`
-}
-
-func PingRoute(r chi.Router, cfg *config.Config) {
-	r.Post("/ping", func(w http.ResponseWriter, r *http.Request) {
+func Ping(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		id := cfg.ID
@@ -58,7 +48,7 @@ func PingRoute(r chi.Router, cfg *config.Config) {
 			"caller_id", id,
 		)
 
-		pong, err := cl.CallPong(ctx, req.Path, id)
+		pong, err := cl.Pong(ctx, req.Path, id)
 		if err != nil {
 			log.Error("error from pong",
 				"message", err.Error(),
@@ -82,39 +72,5 @@ func PingRoute(r chi.Router, cfg *config.Config) {
 			ReceiverID: pong.ReceiverID,
 			CallerID:   id,
 		})
-	})
-}
-
-func PongRoute(r chi.Router, cfg *config.Config) {
-	r.Get("/pong", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		id := cfg.ID
-		isAvailable := cfg.IsAvailable
-
-		log := logging.LoggerFromContext(ctx)
-
-		if !isAvailable {
-			log.Error("pong is not available",
-				"isAvailableVar", isAvailable,
-			)
-
-			httpx.WriteServiceUnavailableByManualInjection(w)
-			return
-		}
-
-		req, err := httpx.ParseRequest[PongRequest](w, r)
-		if err != nil {
-			return
-		}
-
-		log.Info("received pong request",
-			"caller_id", req.CallerID,
-		)
-
-		httpx.WriteOKResponse(w, PongResponse{
-			Message:    "pong",
-			ReceiverID: id,
-		})
-	})
+	}
 }

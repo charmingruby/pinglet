@@ -19,9 +19,9 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-func (c *Client) CallPong(ctx context.Context, path, id string) (*PongResponse, error) {
+func (c *Client) Pong(ctx context.Context, path, id string) (*PongResponse, error) {
 	return httpx.Do[PongResponse](ctx, c.client, httpx.Request{
-		Method:         http.MethodGet,
+		Method:         http.MethodPost,
 		Path:           path,
 		ExpectedStatus: 200,
 		Body: PongRequest{

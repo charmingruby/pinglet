@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	Port        string `env:"PORT,required"`
-	ID          string `env:"CELL_ID,required"`
+	ID          string `env:"ID,required"`
 	IsAvailable bool   `env:"IS_AVAILABLE,required"`
 }
 

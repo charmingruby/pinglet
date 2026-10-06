@@ -6,6 +6,6 @@ import (
 )
 
 func New(r chi.Router, cfg *config.Config) {
-	PingRoute(r, cfg)
-	PongRoute(r, cfg)
+	r.Post("/ping", Ping(cfg))
+	r.Post("/pong", Pong(cfg))
 }
