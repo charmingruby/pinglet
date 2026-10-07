@@ -29,7 +29,7 @@ func Pong(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		if !applyDelay(ctx, cfg.PongDelayMs) {
+		if !sim.ApplyDelay(ctx, cfg.PongDelay) {
 			return
 		}
 

@@ -33,7 +33,7 @@ func Ping(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		if !applyDelay(ctx, cfg.PingDelayMs) {
+		if !sim.ApplyDelay(ctx, cfg.PingDelay) {
 			return
 		}
 
@@ -74,7 +74,7 @@ func Ping(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 		)
 
 		defaultPongTimeout := 5 * time.Second
-		pongTimeout := defaultPongTimeout + time.Duration(cfg.PongDelayMs)*time.Millisecond
+		pongTimeout := defaultPongTimeout + cfg.PongDelay
 
 		pongCtx, cancel := context.WithTimeout(ctx, pongTimeout)
 		defer cancel()

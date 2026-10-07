@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/caarlos0/env"
 	"github.com/joho/godotenv"
@@ -18,7 +19,7 @@ var (
 	ErrInvalidInjectStatusCode = errors.New("INJECT_STATUS_CODE must be in [100,599]")
 )
 
-type Config struct {
+type rawConfig struct {
 	Port             string  `env:"PORT,required"`
 	ID               string  `env:"ID,required"`
 	IsAvailable      bool    `env:"IS_AVAILABLE,required"`
@@ -29,23 +30,35 @@ type Config struct {
 	InjectStatusCode int     `env:"INJECT_STATUS_CODE" envDefault:"500"`
 }
 
+type Config struct {
+	Port             string
+	ID               string
+	IsAvailable      bool
+	PingDelay        time.Duration
+	PongDelay        time.Duration
+	PingFailureRate  float64
+	PongFailureRate  float64
+	InjectStatusCode int
+}
+
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
-	var cfg Config
-
-	if err := env.Parse(&cfg); err != nil {
+	var raw rawConfig
+	if err := env.Parse(&raw); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrParseConfig, err)
 	}
 
-	if err := cfg.validate(); err != nil {
+	if err := raw.validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 
-	return &cfg, nil
+	parsed := raw.parse()
+
+	return &parsed, nil
 }
 
-func (c *Config) validate() error {
+func (c *rawConfig) validate() error {
 	if c.PingDelayMs < 0 {
 		return fmt.Errorf("%w: got %d", ErrInvalidPingDelayMs, c.PingDelayMs)
 	}
@@ -67,4 +80,17 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+func (c *rawConfig) parse() Config {
+	return Config{
+		Port:             c.Port,
+		ID:               c.ID,
+		IsAvailable:      c.IsAvailable,
+		PingDelay:        time.Duration(c.PingDelayMs) * time.Millisecond,
+		PongDelay:        time.Duration(c.PongDelayMs) * time.Millisecond,
+		PingFailureRate:  c.PingFailureRate,
+		PongFailureRate:  c.PongFailureRate,
+		InjectStatusCode: c.InjectStatusCode,
+	}
 }
