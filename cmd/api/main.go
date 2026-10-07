@@ -47,7 +47,6 @@ func run() error {
 		cfg.Port,
 		val,
 		cfg.IsAvailable,
-		time.Duration(cfg.RequestTimeoutMs)*time.Millisecond,
 		cfg.InjectStatusCode,
 	)
 

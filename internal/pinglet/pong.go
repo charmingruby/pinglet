@@ -19,7 +19,7 @@ type PongResponse struct {
 	ReceiverID string `json:"receiver_id"`
 }
 
-func Pong(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
+func Pong(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		log := logging.LoggerFromContext(ctx)
@@ -29,15 +29,18 @@ func Pong(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
+		if !applyDelay(ctx, cfg.PongDelayMs) {
+			return
+		}
+
 		data := sim.Data{
 			Input: sim.Input{
-				DelayMs:     cfg.PongDelayMs,
 				FailureRate: cfg.PongFailureRate,
 				IsAvailable: cfg.IsAvailable,
 			},
 		}
 
-		if _, err := machine.Run(ctx, &data); err != nil {
+		if _, err := networkSim.Run(ctx, &data); err != nil {
 			log.Error("simulation failed",
 				"message", err.Error(),
 			)

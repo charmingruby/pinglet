@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 var (
@@ -24,30 +23,10 @@ type Client struct {
 	baseURL string
 }
 
-type ClientOption func(*Client)
-
-func NewClient(baseURL string, opts ...ClientOption) *Client {
-	c := &Client{
-		client:  &http.Client{Timeout: 5 * time.Second},
+func NewClient(baseURL string) *Client {
+	return &Client{
+		client:  &http.Client{},
 		baseURL: baseURL,
-	}
-
-	for _, opt := range opts {
-		opt(c)
-	}
-
-	return c
-}
-
-func WithTimeout(d time.Duration) ClientOption {
-	return func(c *Client) {
-		c.client.Timeout = d
-	}
-}
-
-func WithHTTPClient(hc *http.Client) ClientOption {
-	return func(c *Client) {
-		c.client = hc
 	}
 }
 

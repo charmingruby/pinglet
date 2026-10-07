@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/charmingruby/pinglet/internal/platform/validator"
 	"github.com/go-chi/chi/v5"
@@ -14,7 +13,7 @@ type Server struct {
 	http.Server
 }
 
-func NewServer(port string, validator *validator.Validator, isAvailable bool, requestTimeout time.Duration, injectStatusCode int) (*Server, chi.Router) {
+func NewServer(port string, validator *validator.Validator, isAvailable bool, injectStatusCode int) (*Server, chi.Router) {
 	addr := ":" + port
 
 	r := chi.NewRouter()
@@ -27,17 +26,10 @@ func NewServer(port string, validator *validator.Validator, isAvailable bool, re
 
 	registerProbes(apiRouter, isAvailable, injectStatusCode)
 
-	if requestTimeout <= 0 {
-		requestTimeout = 5 * time.Second
-	}
-
 	return &Server{
 		Server: http.Server{
-			WriteTimeout: requestTimeout,
-			ReadTimeout:  requestTimeout,
-			IdleTimeout:  120 * time.Second,
-			Addr:         addr,
-			Handler:      r,
+			Addr:    addr,
+			Handler: r,
 		},
 	}, apiRouter
 }

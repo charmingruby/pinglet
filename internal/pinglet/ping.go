@@ -23,7 +23,7 @@ type PingResponse struct {
 	CallerID   string `json:"caller_id"`
 }
 
-func Ping(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
+func Ping(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		log := logging.LoggerFromContext(ctx)
@@ -33,15 +33,18 @@ func Ping(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
+		if !applyDelay(ctx, cfg.PingDelayMs) {
+			return
+		}
+
 		data := sim.Data{
 			Input: sim.Input{
-				DelayMs:     cfg.PingDelayMs,
 				FailureRate: cfg.PingFailureRate,
 				IsAvailable: cfg.IsAvailable,
 			},
 		}
 
-		if _, err := machine.Run(ctx, &data); err != nil {
+		if _, err := networkSim.Run(ctx, &data); err != nil {
 			log.Error("simulation failed",
 				"message", err.Error(),
 			)
@@ -64,18 +67,19 @@ func Ping(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		timeout := time.Duration(cfg.RequestTimeoutMs) * time.Millisecond
-
-		cl := NewClient(req.URL, timeout)
+		cl := NewClient(req.URL)
 
 		log.Info("trying to call pong",
 			"caller_id", cfg.ID,
 		)
 
-		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defaultPongTimeout := 5 * time.Second
+		pongTimeout := defaultPongTimeout + time.Duration(cfg.PongDelayMs)*time.Millisecond
+
+		pongCtx, cancel := context.WithTimeout(ctx, pongTimeout)
 		defer cancel()
 
-		pong, err := cl.Pong(ctx, req.Path, cfg.ID)
+		pong, err := cl.Pong(pongCtx, req.Path, cfg.ID)
 		if err != nil {
 			log.Error("error from pong",
 				"message", err.Error(),

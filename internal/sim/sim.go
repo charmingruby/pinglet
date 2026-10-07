@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"time"
 
 	"github.com/charmingruby/fsm/fsm"
 )
@@ -15,7 +14,6 @@ var (
 )
 
 const (
-	stateApplyDelay        fsm.State = "apply_delay"
 	stateCheckAvailability fsm.State = "check_availability"
 	stateEvaluateFailure   fsm.State = "evaluate_failure"
 	stateUnavailable       fsm.State = "unavailable"
@@ -33,7 +31,6 @@ const (
 )
 
 type Input struct {
-	DelayMs     int
 	FailureRate float64
 	IsAvailable bool
 	Roll        func() float64
@@ -46,10 +43,9 @@ type Data struct {
 }
 
 func New(opts ...fsm.Option[Data]) *fsm.FSM[Data] {
-	f := fsm.New[Data](stateApplyDelay, opts...)
+	f := fsm.New[Data](stateCheckAvailability, opts...)
 
 	f.
-		On(stateApplyDelay, applyDelay).
 		On(stateCheckAvailability, checkAvailability).
 		OnFail(stateCheckAvailability, stateUnavailable).
 		On(stateUnavailable, markUnavailable).
@@ -59,22 +55,6 @@ func New(opts ...fsm.Option[Data]) *fsm.FSM[Data] {
 		Terminal(stateDone, stateFailed)
 
 	return f
-}
-
-func applyDelay(ctx context.Context, d *Data) (fsm.State, error) {
-	if d.Input.DelayMs <= 0 {
-		return stateCheckAvailability, nil
-	}
-
-	timer := time.NewTimer(time.Duration(d.Input.DelayMs) * time.Millisecond)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return fsm.EmptyState, ctx.Err()
-	case <-timer.C:
-		return stateCheckAvailability, nil
-	}
 }
 
 func checkAvailability(_ context.Context, d *Data) (fsm.State, error) {

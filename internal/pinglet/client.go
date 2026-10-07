@@ -3,7 +3,6 @@ package pinglet
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/charmingruby/pinglet/internal/platform/httpx"
 )
@@ -12,8 +11,8 @@ type Client struct {
 	client *httpx.Client
 }
 
-func NewClient(baseURL string, timeout time.Duration) *Client {
-	c := httpx.NewClient(baseURL, httpx.WithTimeout(timeout))
+func NewClient(baseURL string) *Client {
+	c := httpx.NewClient(baseURL)
 
 	return &Client{
 		client: c,
