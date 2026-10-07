@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+tasks:
+  build:
+    desc: Builds API binary
+    cmd: go build -ldflags="-s -w" -trimpath -o bin/api ./cmd/api
+  test:
+    desc: Runs tests
+    cmd: go test ./... -race

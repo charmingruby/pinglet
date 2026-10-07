@@ -26,7 +26,7 @@ jobs:
         id: generate_tag
         run: |
           SHA=$(echo $GITHUB_SHA | head -c7)
-          TAGS="charmingruby/cell:latest,charmingruby/cell:${SHA}"
+          TAGS="charmingruby/pinglet:latest,charmingruby/pinglet:${SHA}"
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
@@ -37,5 +37,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.generate_tag.outputs.tags }}
-          cache-from: type=registry,ref=charmingruby/cell:buildcache
-          cache-to: type=registry,ref=charmingruby/cell:buildcache,mode=max
+          cache-from: type=registry,ref=charmingruby/pinglet:buildcache
+          cache-to: type=registry,ref=charmingruby/pinglet:buildcache,mode=max
