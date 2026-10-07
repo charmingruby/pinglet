@@ -14,7 +14,7 @@ type Server struct {
 	http.Server
 }
 
-func NewServer(port string, validator *validator.Validator, isAvailable bool) (*Server, chi.Router) {
+func NewServer(port string, validator *validator.Validator, isAvailable bool, requestTimeout time.Duration, injectStatusCode int) (*Server, chi.Router) {
 	addr := ":" + port
 
 	r := chi.NewRouter()
@@ -25,12 +25,16 @@ func NewServer(port string, validator *validator.Validator, isAvailable bool) (*
 		apiRouter = router
 	})
 
-	registerProbes(apiRouter, isAvailable)
+	registerProbes(apiRouter, isAvailable, injectStatusCode)
+
+	if requestTimeout <= 0 {
+		requestTimeout = 5 * time.Second
+	}
 
 	return &Server{
 		Server: http.Server{
-			WriteTimeout: 10 * time.Second,
-			ReadTimeout:  5 * time.Second,
+			WriteTimeout: requestTimeout,
+			ReadTimeout:  requestTimeout,
 			IdleTimeout:  120 * time.Second,
 			Addr:         addr,
 			Handler:      r,
@@ -50,10 +54,10 @@ func (s *Server) Close(ctx context.Context) error {
 	return s.Shutdown(ctx)
 }
 
-func registerProbes(r chi.Router, isAvailable bool) {
+func registerProbes(r chi.Router, isAvailable bool, injectStatusCode int) {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if !isAvailable {
-			WriteServiceUnavailableByManualInjection(w)
+			WriteFailureInjection(w, injectStatusCode, "failure injected manually")
 			return
 		}
 

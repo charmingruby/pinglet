@@ -17,9 +17,13 @@ func WriteCreatedResponse(w http.ResponseWriter, v any) {
 	WriteResponse(w, http.StatusCreated, v)
 }
 
-func WriteServiceUnavailableByManualInjection(w http.ResponseWriter) {
-	WriteResponse(w, http.StatusServiceUnavailable, map[string]string{
-		"reason": "failure injected manually",
+func WriteFailureInjection(w http.ResponseWriter, statusCode int, reason string) {
+	if statusCode < 100 || statusCode > 599 {
+		statusCode = http.StatusInternalServerError
+	}
+
+	WriteResponse(w, statusCode, map[string]string{
+		"reason": reason,
 	})
 }
 

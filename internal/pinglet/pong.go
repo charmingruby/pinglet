@@ -3,9 +3,11 @@ package pinglet
 import (
 	"net/http"
 
+	"github.com/charmingruby/fsm/fsm"
 	"github.com/charmingruby/pinglet/config"
 	"github.com/charmingruby/pinglet/internal/platform/httpx"
 	"github.com/charmingruby/pinglet/internal/platform/logging"
+	"github.com/charmingruby/pinglet/internal/sim"
 )
 
 type PongRequest struct {
@@ -17,26 +19,44 @@ type PongResponse struct {
 	ReceiverID string `json:"receiver_id"`
 }
 
-func Pong(cfg *config.Config) http.HandlerFunc {
+func Pong(cfg *config.Config, machine *fsm.FSM[sim.Data]) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-
-		id := cfg.ID
-		isAvailable := cfg.IsAvailable
-
 		log := logging.LoggerFromContext(ctx)
-
-		if !isAvailable {
-			log.Error("pong is not available",
-				"isAvailableVar", isAvailable,
-			)
-
-			httpx.WriteServiceUnavailableByManualInjection(w)
-			return
-		}
 
 		req, err := httpx.ParseRequest[PongRequest](w, r)
 		if err != nil {
+			return
+		}
+
+		data := sim.Data{
+			Input: sim.Input{
+				DelayMs:     cfg.PongDelayMs,
+				FailureRate: cfg.PongFailureRate,
+				IsAvailable: cfg.IsAvailable,
+			},
+		}
+
+		if _, err := machine.Run(ctx, &data); err != nil {
+			log.Error("simulation failed",
+				"message", err.Error(),
+			)
+
+			if ctx.Err() != nil {
+				return
+			}
+
+			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, err.Error())
+			return
+		}
+
+		if data.Outcome != sim.Proceed {
+			log.Error("failure injected on pong",
+				"outcome", data.Outcome,
+				"reason", data.Reason,
+			)
+
+			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, data.Reason)
 			return
 		}
 
@@ -46,8 +66,7 @@ func Pong(cfg *config.Config) http.HandlerFunc {
 
 		httpx.WriteOKResponse(w, PongResponse{
 			Message:    "pong",
-			ReceiverID: id,
+			ReceiverID: cfg.ID,
 		})
 	}
-
 }

@@ -25,13 +25,15 @@ func WithLogger(ctx context.Context, log *Logger) context.Context {
 }
 
 func LoggerFromContext(ctx context.Context) *Logger {
-	if ctx == nil {
+	if ctx != nil {
+		if log, ok := ctx.Value(loggerCtxKey{}).(*Logger); ok && log != nil {
+			return log
+		}
+	}
+
+	if Log != nil {
 		return Log
 	}
 
-	if log, ok := ctx.Value(loggerCtxKey{}).(*Logger); ok {
-		return log
-	}
-
-	return Log
+	return slog.New(slog.DiscardHandler)
 }

@@ -42,9 +42,19 @@ func run() error {
 	}
 
 	val := validator.New()
-	srv, router := httpx.NewServer(cfg.Port, val, cfg.IsAvailable)
 
-	pinglet.New(router, cfg)
+	srv, router := httpx.NewServer(
+		cfg.Port,
+		val,
+		cfg.IsAvailable,
+		time.Duration(cfg.RequestTimeoutMs)*time.Millisecond,
+		cfg.InjectStatusCode,
+	)
+
+	if err := pinglet.New(router, cfg); err != nil {
+		log.Error("pinglet: error creating mod", "error", err)
+		return err
+	}
 
 	shutdownErrCh := make(chan error, 1)
 	go shutdown(ctx, log, shutdownErrCh, srv)
