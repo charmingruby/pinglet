@@ -2,8 +2,10 @@ package sim
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
-	"math/rand"
+	"time"
 
 	"github.com/charmingruby/fsm/fsm"
 )
@@ -31,15 +33,15 @@ const (
 )
 
 type Input struct {
+	Roll        func() float64
 	FailureRate float64
 	IsAvailable bool
-	Roll        func() float64
 }
 
 type Data struct {
+	Reason  string
 	Input   Input
 	Outcome Outcome
-	Reason  string
 }
 
 func New(opts ...fsm.Option[Data]) *fsm.FSM[Data] {
@@ -78,7 +80,7 @@ func evaluateFailure(_ context.Context, d *Data) (fsm.State, error) {
 		return stateDone, nil
 	}
 
-	roll := rand.Float64()
+	roll := randFloat()
 	if d.Input.Roll != nil {
 		roll = d.Input.Roll()
 	}
@@ -95,4 +97,50 @@ func markInjected(_ context.Context, d *Data) (fsm.State, error) {
 	d.Reason = ErrInjected.Error()
 
 	return stateFailed, nil
+}
+
+func Check(ctx context.Context, m *fsm.FSM[Data], delay time.Duration, in Input) (string, bool) {
+	if !applyDelay(ctx, delay) {
+		return "", true
+	}
+
+	d := &Data{Input: in}
+	if _, err := m.Run(ctx, d); err != nil {
+		if ctx.Err() != nil {
+			return "", true
+		}
+
+		return err.Error(), false
+	}
+
+	if d.Outcome != Proceed {
+		return d.Reason, false
+	}
+
+	return "", false
+}
+
+func applyDelay(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func randFloat() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return 0.5
+	}
+
+	return float64(binary.BigEndian.Uint64(b[:])) / float64(^uint64(0))
 }

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/charmingruby/pinglet/internal/platform/validator"
-	"github.com/go-chi/chi/v5"
 )
 
 var (
@@ -36,22 +35,4 @@ func ParseRequest[T any](w http.ResponseWriter, r *http.Request) (*T, error) {
 	}
 
 	return &obj, nil
-}
-
-func GetPathParam(r *http.Request, key string) (string, error) {
-	param := chi.URLParam(r, key)
-	if param == "" {
-		return "", fmt.Errorf("%w: %s", ErrMissingParam, key)
-	}
-
-	return param, nil
-}
-
-func GetQueryParam(r *http.Request, key string) (string, error) {
-	param := r.URL.Query().Get(key)
-	if param == "" {
-		return "", fmt.Errorf("%w: %s", ErrMissingParam, key)
-	}
-
-	return param, nil
 }

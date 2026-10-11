@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/charmingruby/pinglet/internal/platform/validator"
 	"github.com/go-chi/chi/v5"
@@ -13,7 +14,12 @@ type Server struct {
 	http.Server
 }
 
-func NewServer(port string, validator *validator.Validator, isAvailable bool, injectStatusCode int) (*Server, chi.Router) {
+func NewServer(
+	port string,
+	validator *validator.Validator,
+	isAvailable bool,
+	injectStatusCode int,
+) (*Server, chi.Router) {
 	addr := ":" + port
 
 	r := chi.NewRouter()
@@ -28,8 +34,9 @@ func NewServer(port string, validator *validator.Validator, isAvailable bool, in
 
 	return &Server{
 		Server: http.Server{
-			Addr:    addr,
-			Handler: r,
+			Addr:              addr,
+			Handler:           r,
+			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}, apiRouter
 }

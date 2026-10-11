@@ -1,4 +1,4 @@
-package pinglet
+package pingpong_test
 
 import (
 	"encoding/json"
@@ -9,32 +9,20 @@ import (
 	"time"
 
 	"github.com/charmingruby/pinglet/config"
-	"github.com/charmingruby/pinglet/internal/sim"
+	"github.com/charmingruby/pinglet/internal/pinglet/pingpong"
+	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func testConfig() *config.Config {
-	return &config.Config{
-		Port:             "4000",
-		ID:               "receiver-1",
-		IsAvailable:      true,
-		PingDelay:        0,
-		PongDelay:        0,
-		PingFailureRate:  0,
-		PongFailureRate:  0,
-		InjectStatusCode: 500,
-	}
-}
-
 func TestPong(t *testing.T) {
 	tests := []struct {
-		name       string
 		mutate     func(cfg *config.Config)
+		check      func(t *testing.T, body map[string]any)
+		name       string
 		body       string
 		wantStatus int
 		minElapse  time.Duration
-		check      func(t *testing.T, body map[string]any)
 	}{
 		{
 			name:       "success returns pong with receiver id",
@@ -103,14 +91,19 @@ func TestPong(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := testConfig()
+			cfg := newTestConfig("receiver-1")
 			tc.mutate(cfg)
 
-			req := httptest.NewRequest(http.MethodPost, "/api/pong", strings.NewReader(tc.body))
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/pong",
+				strings.NewReader(tc.body),
+			)
 			rec := httptest.NewRecorder()
 
 			start := time.Now()
-			Pong(cfg, sim.New())(rec, req)
+			pingpong.Pong(cfg, sim.New())(rec, req)
 			assert.GreaterOrEqual(t, time.Since(start), tc.minElapse)
 
 			res := rec.Result()
