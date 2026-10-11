@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/charmingruby/pinglet/internal/platform/validator"
 	"github.com/go-chi/chi/v5"
@@ -33,8 +34,9 @@ func NewServer(
 
 	return &Server{
 		Server: http.Server{
-			Addr:    addr,
-			Handler: r,
+			Addr:              addr,
+			Handler:           r,
+			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}, apiRouter
 }

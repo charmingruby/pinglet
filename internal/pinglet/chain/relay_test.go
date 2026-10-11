@@ -1,4 +1,4 @@
-package chain
+package chain_test
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/charmingruby/pinglet/internal/pinglet/chain"
 	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ import (
 func relayServer(t *testing.T, id string) *httptest.Server {
 	t.Helper()
 
-	srv := httptest.NewServer(Relay(newTestConfig(id), sim.New()))
+	srv := httptest.NewServer(chain.Relay(newTestConfig(id), sim.New()))
 	t.Cleanup(srv.Close)
 
 	return srv
@@ -33,7 +34,8 @@ func TestRelay_ForwardsChain(t *testing.T) {
 
 	cfg := newTestConfig("receiver-1")
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/relay",
 		strings.NewReader(
@@ -42,7 +44,7 @@ func TestRelay_ForwardsChain(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
-	Relay(cfg, sim.New())(rec, req)
+	chain.Relay(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
@@ -50,7 +52,7 @@ func TestRelay_ForwardsChain(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, int64(1), hits.Load())
 
-	var out ChainResponse
+	var out chain.ChainResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	assert.Equal(t, "final-node", out.ReceiverID)
 	require.Len(t, out.Trace, 2)
@@ -67,21 +69,22 @@ func TestRelay_BubblesDownstreamError(t *testing.T) {
 
 	cfg := newTestConfig("receiver-1")
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/relay",
 		strings.NewReader(`{"caller_id":"origin","chain":["`+srv.URL+`"]}`),
 	)
 	rec := httptest.NewRecorder()
 
-	Relay(cfg, sim.New())(rec, req)
+	chain.Relay(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 
-	var out ChainErrorBody
+	var out chain.ChainErrorBody
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	assert.Equal(t, "final-node", out.FailedAt)
 	require.Len(t, out.Trace, 1)
@@ -94,21 +97,22 @@ func TestRelay_NetworkErrorKeepsTraceSoFar(t *testing.T) {
 
 	cfg := newTestConfig("receiver-1")
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/relay",
 		strings.NewReader(`{"caller_id":"origin","chain":["`+deadURL+`"],"trace":[{"id":"node-a","message":"pong"}]}`),
 	)
 	rec := httptest.NewRecorder()
 
-	Relay(cfg, sim.New())(rec, req)
+	chain.Relay(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadGateway, res.StatusCode)
 
-	var out ChainErrorBody
+	var out chain.ChainErrorBody
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	assert.Equal(t, "receiver-1", out.FailedAt)
 	require.Len(t, out.Trace, 2)
@@ -119,21 +123,22 @@ func TestRelay_NetworkErrorKeepsTraceSoFar(t *testing.T) {
 func TestRelay_Terminal(t *testing.T) {
 	cfg := newTestConfig("receiver-1")
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/relay",
 		strings.NewReader(`{"caller_id":"origin","trace":[{"id":"node-a","message":"pong"}]}`),
 	)
 	rec := httptest.NewRecorder()
 
-	Relay(cfg, sim.New())(rec, req)
+	chain.Relay(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
-	var out ChainResponse
+	var out chain.ChainResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	assert.Equal(t, "origin", out.CallerID)
 	assert.Equal(t, "receiver-1", out.ReceiverID)

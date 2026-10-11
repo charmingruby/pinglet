@@ -1,4 +1,4 @@
-package pingpong
+package pingpong_test
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmingruby/pinglet/config"
+	"github.com/charmingruby/pinglet/internal/pinglet/pingpong"
 	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,11 +94,16 @@ func TestPong(t *testing.T) {
 			cfg := newTestConfig("receiver-1")
 			tc.mutate(cfg)
 
-			req := httptest.NewRequest(http.MethodPost, "/api/pong", strings.NewReader(tc.body))
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/pong",
+				strings.NewReader(tc.body),
+			)
 			rec := httptest.NewRecorder()
 
 			start := time.Now()
-			Pong(cfg, sim.New())(rec, req)
+			pingpong.Pong(cfg, sim.New())(rec, req)
 			assert.GreaterOrEqual(t, time.Since(start), tc.minElapse)
 
 			res := rec.Result()

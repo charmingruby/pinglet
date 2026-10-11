@@ -75,9 +75,9 @@ func (c *rawConfig) validate() error {
 	return nil
 }
 
-func checkMin(name string, got, min int) error {
-	if got < min {
-		return fmt.Errorf("%s must be >= %d: got %d", name, min, got)
+func checkMin(name string, got, minVal int) error {
+	if got < minVal {
+		return fmt.Errorf("%s must be >= %d: got %d", name, minVal, got)
 	}
 
 	return nil
@@ -91,9 +91,9 @@ func checkRate(name string, got float64) error {
 	return nil
 }
 
-func checkRange(name string, got, min, max int) error {
-	if got < min || got > max {
-		return fmt.Errorf("%s must be in [%d,%d]: got %d", name, min, max, got)
+func checkRange(name string, got, minVal, maxVal int) error {
+	if got < minVal || got > maxVal {
+		return fmt.Errorf("%s must be in [%d,%d]: got %d", name, minVal, maxVal, got)
 	}
 
 	return nil

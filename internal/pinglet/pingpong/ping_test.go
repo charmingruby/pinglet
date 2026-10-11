@@ -1,4 +1,4 @@
-package pingpong
+package pingpong_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmingruby/pinglet/config"
+	"github.com/charmingruby/pinglet/internal/pinglet/pingpong"
 	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,13 +52,13 @@ func stubDownstream(t *testing.T, status int, body string, hits *atomic.Int64) *
 	return srv
 }
 
-func callPing(t *testing.T, cfgID, body string) *httptest.ResponseRecorder {
+func callPing(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/ping", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/ping", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 
-	Ping(newTestConfig(cfgID), sim.New())(rec, req)
+	pingpong.Ping(newTestConfig("caller-a"), sim.New())(rec, req)
 
 	return rec
 }
@@ -67,14 +68,14 @@ func TestPing(t *testing.T) {
 	srv := stubDownstream(t, http.StatusOK, `{"message":"pong","receiver_id":"pong-node"}`, &pongHits)
 
 	t.Run("success relays pong with caller and receiver ids", func(t *testing.T) {
-		rec := callPing(t, "caller-a", `{"to":"`+srv.URL+`"}`)
+		rec := callPing(t, `{"to":"`+srv.URL+`"}`)
 
 		res := rec.Result()
 		defer func() { _ = res.Body.Close() }()
 
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		var out PingResponse
+		var out pingpong.PingResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 		assert.Equal(t, "pong", out.Message)
 		assert.Equal(t, "caller-a", out.CallerID)
@@ -85,11 +86,16 @@ func TestPing(t *testing.T) {
 		cfg := newTestConfig("caller-a")
 		cfg.PingDelay = 200 * time.Millisecond
 
-		req := httptest.NewRequest(http.MethodPost, "/api/ping", strings.NewReader(`{"to":"`+srv.URL+`"}`))
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/ping",
+			strings.NewReader(`{"to":"`+srv.URL+`"}`),
+		)
 		rec := httptest.NewRecorder()
 
 		start := time.Now()
-		Ping(cfg, sim.New())(rec, req)
+		pingpong.Ping(cfg, sim.New())(rec, req)
 		assert.GreaterOrEqual(t, time.Since(start), 200*time.Millisecond)
 
 		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
@@ -101,10 +107,15 @@ func TestPing(t *testing.T) {
 
 		before := pongHits.Load()
 
-		req := httptest.NewRequest(http.MethodPost, "/api/ping", strings.NewReader(`{"to":"`+srv.URL+`"}`))
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/ping",
+			strings.NewReader(`{"to":"`+srv.URL+`"}`),
+		)
 		rec := httptest.NewRecorder()
 
-		Ping(cfg, sim.New())(rec, req)
+		pingpong.Ping(cfg, sim.New())(rec, req)
 
 		res := rec.Result()
 		defer func() { _ = res.Body.Close() }()
@@ -117,7 +128,7 @@ func TestPing(t *testing.T) {
 	t.Run("pong error surfaces as service unavailable", func(t *testing.T) {
 		brokenSrv := stubDownstream(t, http.StatusInternalServerError, `{"reason":"boom"}`, nil)
 
-		rec := callPing(t, "caller-a", `{"to":"`+brokenSrv.URL+`"}`)
+		rec := callPing(t, `{"to":"`+brokenSrv.URL+`"}`)
 
 		res := rec.Result()
 		defer func() { _ = res.Body.Close() }()
@@ -127,7 +138,7 @@ func TestPing(t *testing.T) {
 	})
 
 	t.Run("invalid destination is rejected", func(t *testing.T) {
-		rec := callPing(t, "caller-a", `{"to":"not-a-url"}`)
+		rec := callPing(t, `{"to":"not-a-url"}`)
 
 		res := rec.Result()
 		defer func() { _ = res.Body.Close() }()
@@ -136,7 +147,7 @@ func TestPing(t *testing.T) {
 	})
 
 	t.Run("invalid payload is rejected", func(t *testing.T) {
-		rec := callPing(t, "caller-a", `{"to":`)
+		rec := callPing(t, `{"to":`)
 
 		res := rec.Result()
 		defer func() { _ = res.Body.Close() }()

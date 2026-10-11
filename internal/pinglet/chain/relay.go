@@ -3,9 +3,7 @@ package chain
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/charmingruby/fsm/fsm"
 	"github.com/charmingruby/pinglet/config"
@@ -32,7 +30,8 @@ func Relay(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		trace := append(req.Trace, HopResult{ID: cfg.ID, Message: "ok"})
+		req.Trace = append(req.Trace, HopResult{ID: cfg.ID, Message: "ok"})
+		trace := req.Trace
 
 		if reason != "" {
 			log.Error("failure injected on relay", "reason", reason)
@@ -45,34 +44,11 @@ func Relay(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		if len(req.Chain) > cfg.MaxChainDepth {
-			msg := fmt.Sprintf("chain depth %d exceeds max %d", len(req.Chain), cfg.MaxChainDepth)
-			log.Error("invalid remaining chain on relay", "message", msg)
-			httpx.WriteError(w, http.StatusBadRequest, msg)
+		if err := validateChain(req.Chain, cfg.MaxChainDepth); err != nil {
+			log.Error("invalid remaining chain on relay", "message", err.Error())
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 
 			return
-		}
-
-		seen := make(map[string]struct{}, len(req.Chain))
-		for _, entry := range req.Chain {
-			u, uerr := url.ParseRequestURI(entry)
-			if uerr != nil || u.Scheme == "" || u.Host == "" {
-				msg := fmt.Sprintf("invalid chain entry %q: must be an absolute URL", entry)
-				log.Error("invalid remaining chain on relay", "message", msg)
-				httpx.WriteError(w, http.StatusBadRequest, msg)
-
-				return
-			}
-
-			if _, dup := seen[entry]; dup {
-				msg := fmt.Sprintf("invalid chain entry %q: duplicated URL (cycle)", entry)
-				log.Error("invalid remaining chain on relay", "message", msg)
-				httpx.WriteError(w, http.StatusBadRequest, msg)
-
-				return
-			}
-
-			seen[entry] = struct{}{}
 		}
 
 		if len(req.Chain) == 0 {

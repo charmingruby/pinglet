@@ -1,4 +1,4 @@
-package chain
+package chain_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmingruby/pinglet/config"
+	"github.com/charmingruby/pinglet/internal/pinglet/chain"
 	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,13 +52,13 @@ func stubDownstream(t *testing.T, status int, body string, hits *atomic.Int64) *
 	return srv
 }
 
-func callChain(t *testing.T, callerID, body string) *httptest.ResponseRecorder {
+func callChain(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/chain", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/chain", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 
-	Chain(newTestConfig(callerID), sim.New())(rec, req)
+	chain.Chain(newTestConfig("node-a"), sim.New())(rec, req)
 
 	return rec
 }
@@ -65,14 +66,14 @@ func callChain(t *testing.T, callerID, body string) *httptest.ResponseRecorder {
 func TestChain_SingleHop(t *testing.T) {
 	nodeB := relayServer(t, "node-b")
 
-	rec := callChain(t, "node-a", `{"chain":["`+nodeB.URL+`"]}`)
+	rec := callChain(t, `{"chain":["`+nodeB.URL+`"]}`)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
-	var out ChainResponse
+	var out chain.ChainResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 
 	assert.Equal(t, "node-a", out.CallerID)
@@ -85,14 +86,14 @@ func TestChain_TwoHops(t *testing.T) {
 	nodeC := relayServer(t, "node-c")
 	nodeB := relayServer(t, "node-b")
 
-	rec := callChain(t, "node-a", `{"chain":["`+nodeB.URL+`","`+nodeC.URL+`"]}`)
+	rec := callChain(t, `{"chain":["`+nodeB.URL+`","`+nodeC.URL+`"]}`)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
-	var out ChainResponse
+	var out chain.ChainResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 
 	assert.Equal(t, "node-a", out.CallerID)
@@ -139,7 +140,7 @@ func TestChain(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := callChain(t, "node-a", tc.body)
+			rec := callChain(t, tc.body)
 
 			res := rec.Result()
 			defer func() { _ = res.Body.Close() }()
@@ -162,14 +163,15 @@ func TestChain_SimFailureNeverReachesDownstream(t *testing.T) {
 	cfg := newTestConfig("node-a")
 	cfg.IsAvailable = false
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/chain",
 		strings.NewReader(`{"chain":["`+srv.URL+`"]}`),
 	)
 	rec := httptest.NewRecorder()
 
-	Chain(cfg, sim.New())(rec, req)
+	chain.Chain(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
@@ -188,14 +190,15 @@ func TestChain_DepthExceeded(t *testing.T) {
 	cfg := newTestConfig("node-a")
 	cfg.MaxChainDepth = 1
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(
+		t.Context(),
 		http.MethodPost,
 		"/api/chain",
 		strings.NewReader(`{"chain":["`+nodeB.URL+`","http://c:4000/api/relay"]}`),
 	)
 	rec := httptest.NewRecorder()
 
-	Chain(cfg, sim.New())(rec, req)
+	chain.Chain(cfg, sim.New())(rec, req)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
@@ -211,14 +214,14 @@ func TestChain_BubblesDownstreamError(t *testing.T) {
 		nil,
 	)
 
-	rec := callChain(t, "node-a", `{"chain":["`+srv.URL+`"]}`)
+	rec := callChain(t, `{"chain":["`+srv.URL+`"]}`)
 
 	res := rec.Result()
 	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 
-	var out ChainErrorBody
+	var out chain.ChainErrorBody
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	assert.Equal(t, "final-node", out.FailedAt)
 	assert.Equal(t, "failure injected: unavailable", out.Reason)

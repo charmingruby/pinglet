@@ -70,34 +70,11 @@ func Chain(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		if len(req.Chain) > cfg.MaxChainDepth {
-			msg := fmt.Sprintf("chain depth %d exceeds max %d", len(req.Chain), cfg.MaxChainDepth)
-			log.Error("invalid chain", "message", msg)
-			httpx.WriteError(w, http.StatusBadRequest, msg)
+		if err := validateChain(req.Chain, cfg.MaxChainDepth); err != nil {
+			log.Error("invalid chain", "message", err.Error())
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 
 			return
-		}
-
-		seen := make(map[string]struct{}, len(req.Chain))
-		for _, entry := range req.Chain {
-			u, uerr := url.ParseRequestURI(entry)
-			if uerr != nil || u.Scheme == "" || u.Host == "" {
-				msg := fmt.Sprintf("invalid chain entry %q: must be an absolute URL", entry)
-				log.Error("invalid chain", "message", msg)
-				httpx.WriteError(w, http.StatusBadRequest, msg)
-
-				return
-			}
-
-			if _, dup := seen[entry]; dup {
-				msg := fmt.Sprintf("invalid chain entry %q: duplicated URL (cycle)", entry)
-				log.Error("invalid chain", "message", msg)
-				httpx.WriteError(w, http.StatusBadRequest, msg)
-
-				return
-			}
-
-			seen[entry] = struct{}{}
 		}
 
 		log.Info("starting chain",
@@ -145,4 +122,27 @@ func Chain(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 
 		httpx.WriteOKResponse(w, res)
 	}
+}
+
+func validateChain(chain []string, maxDepth int) error {
+	if len(chain) > maxDepth {
+		return fmt.Errorf("chain depth %d exceeds max %d", len(chain), maxDepth)
+	}
+
+	seen := make(map[string]struct{}, len(chain))
+
+	for _, entry := range chain {
+		u, uerr := url.ParseRequestURI(entry)
+		if uerr != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("invalid chain entry %q: must be an absolute URL", entry)
+		}
+
+		if _, dup := seen[entry]; dup {
+			return fmt.Errorf("invalid chain entry %q: duplicated URL (cycle)", entry)
+		}
+
+		seen[entry] = struct{}{}
+	}
+
+	return nil
 }
