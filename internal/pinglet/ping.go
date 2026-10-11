@@ -87,8 +87,8 @@ func Ping(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 				"path", req.Path,
 			)
 
-			httpx.WriteResponse(w, http.StatusInternalServerError, map[string]string{
-				"message": "Internal Server Error",
+			httpx.WriteResponse(w, http.StatusServiceUnavailable, map[string]string{
+				"message": "Pong service is unavailable",
 			})
 			return
 		}
