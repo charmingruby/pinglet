@@ -1,20 +1,21 @@
-package pinglet
+package pingpong
 
 import (
 	"context"
 	"net/http"
-	"time"
+	"net/url"
 
 	"github.com/charmingruby/fsm/fsm"
 	"github.com/charmingruby/pinglet/config"
 	"github.com/charmingruby/pinglet/internal/platform/httpx"
 	"github.com/charmingruby/pinglet/internal/platform/logging"
-	"github.com/charmingruby/pinglet/internal/sim"
+	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 )
 
+// PingRequest calls a single downstream pong.
+// {"to": "http://pong-node:4000/api/pong"}.
 type PingRequest struct {
-	URL  string `json:"url"`
-	Path string `json:"path"`
+	To string `json:"to" validate:"required,url"`
 }
 
 type PingResponse struct {
@@ -37,59 +38,62 @@ func Ping(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		data := sim.Data{
+		simData := sim.Data{
 			Input: sim.Input{
 				FailureRate: cfg.PingFailureRate,
 				IsAvailable: cfg.IsAvailable,
 			},
 		}
 
-		if _, err := networkSim.Run(ctx, &data); err != nil {
-			log.Error("simulation failed",
-				"message", err.Error(),
-			)
-
+		simReason := ""
+		if _, err := networkSim.Run(ctx, &simData); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
 
-			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, err.Error())
+			simReason = err.Error()
+		} else if simData.Outcome != sim.Proceed {
+			simReason = simData.Reason
+		}
+
+		if simReason != "" {
+			log.Error("failure injected on ping", "reason", simReason)
+			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, simReason)
+
 			return
 		}
 
-		if data.Outcome != sim.Proceed {
-			log.Error("failure injected on ping",
-				"outcome", data.Outcome,
-				"reason", data.Reason,
-			)
+		if u, err := url.ParseRequestURI(req.To); err != nil || u.Scheme == "" || u.Host == "" {
+			httpx.WriteResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "invalid destination URL",
+			})
 
-			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, data.Reason)
 			return
 		}
 
-		cl := NewClient(req.URL)
+		log.Info("trying to call pong", "caller_id", cfg.ID)
 
-		log.Info("trying to call pong",
-			"caller_id", cfg.ID,
-		)
-
-		defaultPongTimeout := 5 * time.Second
-		pongTimeout := defaultPongTimeout + cfg.PongDelay
-
-		pongCtx, cancel := context.WithTimeout(ctx, pongTimeout)
+		pongCtx, cancel := context.WithTimeout(ctx, cfg.HopTimeout+cfg.PongDelay)
 		defer cancel()
 
-		pong, err := cl.Pong(pongCtx, req.Path, cfg.ID)
+		pong, err := httpx.Do[PongResponse](pongCtx, httpx.NewClient(), httpx.Request{
+			Method:         http.MethodPost,
+			URL:            req.To,
+			ExpectedStatus: http.StatusOK,
+			Body: PongRequest{
+				CallerID: cfg.ID,
+			},
+		})
 		if err != nil {
 			log.Error("error from pong",
 				"message", err.Error(),
-				"url", req.URL,
-				"path", req.Path,
+				"to", req.To,
 			)
 
 			httpx.WriteResponse(w, http.StatusServiceUnavailable, map[string]string{
 				"message": "Pong service is unavailable",
 			})
+
 			return
 		}
 

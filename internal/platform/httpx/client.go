@@ -19,14 +19,12 @@ var (
 )
 
 type Client struct {
-	client  *http.Client
-	baseURL string
+	client *http.Client
 }
 
-func NewClient(baseURL string) *Client {
+func NewClient() *Client {
 	return &Client{
-		client:  &http.Client{},
-		baseURL: baseURL,
+		client: &http.Client{},
 	}
 }
 
@@ -34,7 +32,7 @@ type Request struct {
 	Body           any
 	Headers        http.Header
 	Method         string
-	Path           string
+	URL            string
 	ExpectedStatus int
 }
 
@@ -43,8 +41,6 @@ func Do[T any](
 	c *Client,
 	r Request,
 ) (*T, error) {
-	url := c.baseURL + r.Path
-
 	var bodyReader io.Reader
 	if r.Body != nil {
 		buf := &bytes.Buffer{}
@@ -54,7 +50,7 @@ func Do[T any](
 		bodyReader = buf
 	}
 
-	req, err := http.NewRequestWithContext(ctx, r.Method, url, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, r.Method, r.URL, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrCreateRequest, err)
 	}

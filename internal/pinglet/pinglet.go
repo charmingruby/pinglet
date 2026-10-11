@@ -2,7 +2,9 @@ package pinglet
 
 import (
 	"github.com/charmingruby/pinglet/config"
-	"github.com/charmingruby/pinglet/internal/sim"
+	"github.com/charmingruby/pinglet/internal/pinglet/chain"
+	"github.com/charmingruby/pinglet/internal/pinglet/pingpong"
+	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -13,8 +15,10 @@ func New(r chi.Router, cfg *config.Config) error {
 		return err
 	}
 
-	r.Post("/ping", Ping(cfg, sim))
-	r.Post("/pong", Pong(cfg, sim))
+	r.Post("/ping", pingpong.Ping(cfg, sim))
+	r.Post("/pong", pingpong.Pong(cfg, sim))
+	r.Post("/chain", chain.Chain(cfg, sim))
+	r.Post("/relay", chain.Relay(cfg, sim))
 
 	return nil
 }

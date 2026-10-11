@@ -62,11 +62,11 @@ func TestDo(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			client := NewClient(srv.URL)
+			client := NewClient()
 
 			res, err := Do[map[string]string](context.Background(), client, Request{
 				Method:         http.MethodPost,
-				Path:           "/api/pong",
+				URL:            srv.URL + "/api/pong",
 				ExpectedStatus: tc.expectedStatus,
 				Body:           tc.body,
 			})
@@ -89,11 +89,11 @@ func TestDo_UnreachableHost(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 	srv.Close()
 
-	client := NewClient(srv.URL)
+	client := NewClient()
 
 	res, err := Do[map[string]string](context.Background(), client, Request{
 		Method:         http.MethodPost,
-		Path:           "/api/pong",
+		URL:            srv.URL + "/api/pong",
 		ExpectedStatus: http.StatusOK,
 	})
 
@@ -109,14 +109,14 @@ func TestDo_CanceledContext(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client := NewClient(srv.URL)
+	client := NewClient()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	res, err := Do[map[string]string](ctx, client, Request{
 		Method:         http.MethodPost,
-		Path:           "/api/pong",
+		URL:            srv.URL + "/api/pong",
 		ExpectedStatus: http.StatusOK,
 	})
 

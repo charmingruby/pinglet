@@ -35,6 +35,8 @@ func TestLoad_Valid(t *testing.T) {
 				assert.Equal(t, 0.0, cfg.PingFailureRate)
 				assert.Equal(t, 0.0, cfg.PongFailureRate)
 				assert.Equal(t, 500, cfg.InjectStatusCode)
+				assert.Equal(t, 10, cfg.MaxChainDepth)
+				assert.Equal(t, 5*time.Second, cfg.HopTimeout)
 			},
 		},
 		{
@@ -55,12 +57,16 @@ func TestLoad_Valid(t *testing.T) {
 				"PONG_FAILURE_RATE":  "0.25",
 				"INJECT_STATUS_CODE": "503",
 				"IS_AVAILABLE":       "false",
+				"MAX_CHAIN_DEPTH":    "3",
+				"HOP_TIMEOUT_MS":     "1500",
 			},
 			check: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, 0.5, cfg.PingFailureRate)
 				assert.Equal(t, 0.25, cfg.PongFailureRate)
 				assert.Equal(t, 503, cfg.InjectStatusCode)
 				assert.False(t, cfg.IsAvailable)
+				assert.Equal(t, 3, cfg.MaxChainDepth)
+				assert.Equal(t, 1500*time.Millisecond, cfg.HopTimeout)
 			},
 		},
 	}
@@ -115,6 +121,16 @@ func TestLoad_Invalid(t *testing.T) {
 			name:    "inject status code above 599",
 			env:     map[string]string{"INJECT_STATUS_CODE": "600"},
 			wantErr: ErrInvalidInjectStatusCode,
+		},
+		{
+			name:    "max chain depth below one",
+			env:     map[string]string{"MAX_CHAIN_DEPTH": "0"},
+			wantErr: ErrInvalidMaxChainDepth,
+		},
+		{
+			name:    "hop timeout not positive",
+			env:     map[string]string{"HOP_TIMEOUT_MS": "0"},
+			wantErr: ErrInvalidHopTimeoutMs,
 		},
 	}
 

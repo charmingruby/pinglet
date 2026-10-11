@@ -17,6 +17,8 @@ var (
 	ErrInvalidPingFailureRate  = errors.New("PING_FAILURE_RATE must be in [0,1]")
 	ErrInvalidPongFailureRate  = errors.New("PONG_FAILURE_RATE must be in [0,1]")
 	ErrInvalidInjectStatusCode = errors.New("INJECT_STATUS_CODE must be in [100,599]")
+	ErrInvalidMaxChainDepth    = errors.New("MAX_CHAIN_DEPTH must be >= 1")
+	ErrInvalidHopTimeoutMs     = errors.New("HOP_TIMEOUT_MS must be > 0")
 )
 
 type rawConfig struct {
@@ -28,6 +30,8 @@ type rawConfig struct {
 	PingFailureRate  float64 `env:"PING_FAILURE_RATE" envDefault:"0"`
 	PongFailureRate  float64 `env:"PONG_FAILURE_RATE" envDefault:"0"`
 	InjectStatusCode int     `env:"INJECT_STATUS_CODE" envDefault:"500"`
+	MaxChainDepth    int     `env:"MAX_CHAIN_DEPTH" envDefault:"10"`
+	HopTimeoutMs     int     `env:"HOP_TIMEOUT_MS" envDefault:"5000"`
 }
 
 type Config struct {
@@ -39,6 +43,8 @@ type Config struct {
 	PingFailureRate  float64
 	PongFailureRate  float64
 	InjectStatusCode int
+	MaxChainDepth    int
+	HopTimeout       time.Duration
 }
 
 func Load() (*Config, error) {
@@ -79,6 +85,14 @@ func (c *rawConfig) validate() error {
 		return fmt.Errorf("%w: got %d", ErrInvalidInjectStatusCode, c.InjectStatusCode)
 	}
 
+	if c.MaxChainDepth < 1 {
+		return fmt.Errorf("%w: got %d", ErrInvalidMaxChainDepth, c.MaxChainDepth)
+	}
+
+	if c.HopTimeoutMs <= 0 {
+		return fmt.Errorf("%w: got %d", ErrInvalidHopTimeoutMs, c.HopTimeoutMs)
+	}
+
 	return nil
 }
 
@@ -92,5 +106,7 @@ func (c *rawConfig) parse() Config {
 		PingFailureRate:  c.PingFailureRate,
 		PongFailureRate:  c.PongFailureRate,
 		InjectStatusCode: c.InjectStatusCode,
+		MaxChainDepth:    c.MaxChainDepth,
+		HopTimeout:       time.Duration(c.HopTimeoutMs) * time.Millisecond,
 	}
 }

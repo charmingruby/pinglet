@@ -1,4 +1,4 @@
-package pinglet
+package pingpong
 
 import (
 	"net/http"
@@ -7,11 +7,11 @@ import (
 	"github.com/charmingruby/pinglet/config"
 	"github.com/charmingruby/pinglet/internal/platform/httpx"
 	"github.com/charmingruby/pinglet/internal/platform/logging"
-	"github.com/charmingruby/pinglet/internal/sim"
+	"github.com/charmingruby/pinglet/internal/pinglet/sim"
 )
 
 type PongRequest struct {
-	CallerID string `json:"caller_id"`
+	CallerID string `json:"caller_id" validate:"required"`
 }
 
 type PongResponse struct {
@@ -33,39 +33,32 @@ func Pong(cfg *config.Config, networkSim *fsm.FSM[sim.Data]) http.HandlerFunc {
 			return
 		}
 
-		data := sim.Data{
+		simData := sim.Data{
 			Input: sim.Input{
 				FailureRate: cfg.PongFailureRate,
 				IsAvailable: cfg.IsAvailable,
 			},
 		}
 
-		if _, err := networkSim.Run(ctx, &data); err != nil {
-			log.Error("simulation failed",
-				"message", err.Error(),
-			)
-
+		simReason := ""
+		if _, err := networkSim.Run(ctx, &simData); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
 
-			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, err.Error())
+			simReason = err.Error()
+		} else if simData.Outcome != sim.Proceed {
+			simReason = simData.Reason
+		}
+
+		if simReason != "" {
+			log.Error("failure injected on pong", "reason", simReason)
+			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, simReason)
+
 			return
 		}
 
-		if data.Outcome != sim.Proceed {
-			log.Error("failure injected on pong",
-				"outcome", data.Outcome,
-				"reason", data.Reason,
-			)
-
-			httpx.WriteFailureInjection(w, cfg.InjectStatusCode, data.Reason)
-			return
-		}
-
-		log.Info("received pong request",
-			"caller_id", req.CallerID,
-		)
+		log.Info("received pong request", "caller_id", req.CallerID)
 
 		httpx.WriteOKResponse(w, PongResponse{
 			Message:    "pong",
