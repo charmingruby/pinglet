@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,54 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testConfig() *config.Config {
-	return &config.Config{
-		Port:             "4000",
-		ID:               "receiver-1",
-		IsAvailable:      true,
-		PingDelay:        0,
-		PongDelay:        0,
-		PingFailureRate:  0,
-		PongFailureRate:  0,
-		InjectStatusCode: 500,
-		MaxChainDepth:    10,
-		HopTimeout:       5 * time.Second,
-	}
-}
-
-// fakeDownstream is a raw stub returning canned status/body and counting hits.
-type fakeDownstream struct {
-	status int
-	body   string
-	hits   atomic.Int64
-}
-
-func (f *fakeDownstream) handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		f.hits.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(f.status)
-		_, _ = w.Write([]byte(f.body))
-	}
-}
-
-func decodeBody(t *testing.T, res *http.Response) map[string]any {
-	t.Helper()
-
-	var body map[string]any
-	require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
-
-	return body
-}
-
 func TestPong(t *testing.T) {
 	tests := []struct {
-		name       string
 		mutate     func(cfg *config.Config)
+		check      func(t *testing.T, body map[string]any)
+		name       string
 		body       string
 		wantStatus int
 		minElapse  time.Duration
-		check      func(t *testing.T, body map[string]any)
 	}{
 		{
 			name:       "success returns pong with receiver id",
@@ -131,7 +90,7 @@ func TestPong(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := testConfig()
+			cfg := newTestConfig("receiver-1")
 			tc.mutate(cfg)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/pong", strings.NewReader(tc.body))

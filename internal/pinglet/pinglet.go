@@ -8,17 +8,14 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func New(r chi.Router, cfg *config.Config) error {
-	sim := sim.New()
-
-	if err := sim.Validate(); err != nil {
-		return err
+func New(r chi.Router, cfg *config.Config) {
+	networkSim := sim.New()
+	if err := networkSim.Validate(); err != nil {
+		panic(err)
 	}
 
-	r.Post("/ping", pingpong.Ping(cfg, sim))
-	r.Post("/pong", pingpong.Pong(cfg, sim))
-	r.Post("/chain", chain.Chain(cfg, sim))
-	r.Post("/relay", chain.Relay(cfg, sim))
-
-	return nil
+	r.Post("/ping", pingpong.Ping(cfg, networkSim))
+	r.Post("/pong", pingpong.Pong(cfg, networkSim))
+	r.Post("/chain", chain.Chain(cfg, networkSim))
+	r.Post("/relay", chain.Relay(cfg, networkSim))
 }

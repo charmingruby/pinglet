@@ -2,7 +2,6 @@ package httpx
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,13 +12,13 @@ import (
 
 func TestDo(t *testing.T) {
 	tests := []struct {
-		name           string
-		serverStatus   int
-		serverBody     string
-		expectedStatus int
 		body           any
 		wantErr        error
 		check          func(t *testing.T, res *map[string]string)
+		name           string
+		serverBody     string
+		serverStatus   int
+		expectedStatus int
 	}{
 		{
 			name:           "decodes successful response",
@@ -80,7 +79,7 @@ func TestDo(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Nil(t, res)
-			assert.True(t, errors.Is(err, tc.wantErr), "expected %v, got %v", tc.wantErr, err)
+			assert.ErrorIs(t, err, tc.wantErr, "expected %v, got %v", tc.wantErr, err)
 		})
 	}
 }
@@ -99,7 +98,7 @@ func TestDo_UnreachableHost(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.True(t, errors.Is(err, ErrDoRequest), "expected ErrDoRequest, got %v", err)
+	assert.ErrorIs(t, err, ErrDoRequest, "expected ErrDoRequest, got %v", err)
 }
 
 func TestDo_CanceledContext(t *testing.T) {

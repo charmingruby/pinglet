@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"testing"
 	"time"
@@ -19,9 +18,9 @@ func setRequiredEnv(t *testing.T) {
 
 func TestLoad_Valid(t *testing.T) {
 	tests := []struct {
-		name  string
 		env   map[string]string
 		check func(t *testing.T, cfg *Config)
+		name  string
 	}{
 		{
 			name: "defaults when only required vars are set",
@@ -90,48 +89,32 @@ func TestLoad_Invalid(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     map[string]string
-		wantErr error
+		wantMsg string
 	}{
-		{
-			name:    "negative ping delay",
-			env:     map[string]string{"PING_DELAY_MS": "-1"},
-			wantErr: ErrInvalidPingDelayMs,
-		},
-		{
-			name:    "negative pong delay",
-			env:     map[string]string{"PONG_DELAY_MS": "-5"},
-			wantErr: ErrInvalidPongDelayMs,
-		},
+		{name: "negative ping delay", env: map[string]string{"PING_DELAY_MS": "-1"}, wantMsg: "PING_DELAY_MS"},
+		{name: "negative pong delay", env: map[string]string{"PONG_DELAY_MS": "-5"}, wantMsg: "PONG_DELAY_MS"},
 		{
 			name:    "ping failure rate above one",
 			env:     map[string]string{"PING_FAILURE_RATE": "1.5"},
-			wantErr: ErrInvalidPingFailureRate,
+			wantMsg: "PING_FAILURE_RATE",
 		},
 		{
 			name:    "pong failure rate below zero",
 			env:     map[string]string{"PONG_FAILURE_RATE": "-0.1"},
-			wantErr: ErrInvalidPongFailureRate,
+			wantMsg: "PONG_FAILURE_RATE",
 		},
 		{
 			name:    "inject status code below 100",
 			env:     map[string]string{"INJECT_STATUS_CODE": "99"},
-			wantErr: ErrInvalidInjectStatusCode,
+			wantMsg: "INJECT_STATUS_CODE",
 		},
 		{
 			name:    "inject status code above 599",
 			env:     map[string]string{"INJECT_STATUS_CODE": "600"},
-			wantErr: ErrInvalidInjectStatusCode,
+			wantMsg: "INJECT_STATUS_CODE",
 		},
-		{
-			name:    "max chain depth below one",
-			env:     map[string]string{"MAX_CHAIN_DEPTH": "0"},
-			wantErr: ErrInvalidMaxChainDepth,
-		},
-		{
-			name:    "hop timeout not positive",
-			env:     map[string]string{"HOP_TIMEOUT_MS": "0"},
-			wantErr: ErrInvalidHopTimeoutMs,
-		},
+		{name: "max chain depth below one", env: map[string]string{"MAX_CHAIN_DEPTH": "0"}, wantMsg: "MAX_CHAIN_DEPTH"},
+		{name: "hop timeout not positive", env: map[string]string{"HOP_TIMEOUT_MS": "0"}, wantMsg: "HOP_TIMEOUT_MS"},
 	}
 
 	for _, tc := range tests {
@@ -144,8 +127,8 @@ func TestLoad_Invalid(t *testing.T) {
 			cfg, err := Load()
 			require.Error(t, err)
 			assert.Nil(t, cfg)
-			assert.True(t, errors.Is(err, ErrInvalidConfig), "expected ErrInvalidConfig, got %v", err)
-			assert.True(t, errors.Is(err, tc.wantErr), "expected %v, got %v", tc.wantErr, err)
+			assert.ErrorIs(t, err, ErrInvalidConfig)
+			assert.Contains(t, err.Error(), tc.wantMsg)
 		})
 	}
 }
@@ -157,5 +140,5 @@ func TestLoad_MissingRequired(t *testing.T) {
 	cfg, err := Load()
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.True(t, errors.Is(err, ErrParseConfig), "expected ErrParseConfig, got %v", err)
+	assert.ErrorIs(t, err, ErrParseConfig)
 }

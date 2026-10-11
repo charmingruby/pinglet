@@ -5,16 +5,12 @@ import (
 	"net/http"
 )
 
-type ErrorResponse struct {
-	Message string `json:"message"`
-}
-
 func WriteOKResponse(w http.ResponseWriter, v any) {
 	WriteResponse(w, http.StatusOK, v)
 }
 
-func WriteCreatedResponse(w http.ResponseWriter, v any) {
-	WriteResponse(w, http.StatusCreated, v)
+func WriteError(w http.ResponseWriter, status int, message string) {
+	WriteResponse(w, status, map[string]string{"message": message})
 }
 
 func WriteFailureInjection(w http.ResponseWriter, statusCode int, reason string) {
@@ -22,13 +18,7 @@ func WriteFailureInjection(w http.ResponseWriter, statusCode int, reason string)
 		statusCode = http.StatusInternalServerError
 	}
 
-	WriteResponse(w, statusCode, map[string]string{
-		"reason": reason,
-	})
-}
-
-func WriteEmptyResponse(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusNoContent)
+	WriteResponse(w, statusCode, map[string]string{"reason": reason})
 }
 
 func WriteResponse(w http.ResponseWriter, status int, v any) {

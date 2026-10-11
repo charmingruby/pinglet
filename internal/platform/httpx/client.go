@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 var (
@@ -18,15 +19,30 @@ var (
 	ErrDecodeResponse       = errors.New("decode response")
 )
 
+type StatusError struct {
+	Body   []byte
+	Status int
+	Want   int
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s: got %d, want %d, body: %s",
+		ErrUnexpectedStatusCode, e.Status, e.Want, e.Body)
+}
+
+func (e *StatusError) Unwrap() error { return ErrUnexpectedStatusCode }
+
 type Client struct {
 	client *http.Client
 }
 
 func NewClient() *Client {
 	return &Client{
-		client: &http.Client{},
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
+
+var DefaultClient = NewClient()
 
 type Request struct {
 	Body           any
@@ -34,6 +50,15 @@ type Request struct {
 	Method         string
 	URL            string
 	ExpectedStatus int
+}
+
+func Post[T any](ctx context.Context, url string, body any) (*T, error) {
+	return Do[T](ctx, DefaultClient, Request{
+		Method:         http.MethodPost,
+		URL:            url,
+		ExpectedStatus: http.StatusOK,
+		Body:           body,
+	})
 }
 
 func Do[T any](
@@ -76,13 +101,7 @@ func Do[T any](
 
 	if res.StatusCode != r.ExpectedStatus {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return nil, fmt.Errorf(
-			"%w: got %d, want %d, body: %s",
-			ErrUnexpectedStatusCode,
-			res.StatusCode,
-			r.ExpectedStatus,
-			body,
-		)
+		return nil, &StatusError{Status: res.StatusCode, Want: r.ExpectedStatus, Body: body}
 	}
 
 	var result T

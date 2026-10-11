@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=https://taskfile.dev/schema.json
-
 version: "3"
 
 tasks:
@@ -9,3 +7,13 @@ tasks:
   test:
     desc: Runs tests
     cmd: go test ./... -race
+  lint:
+    desc: Runs linter
+    cmds:
+      - go fmt ./...
+      - golangci-lint run ./...
+  lint-fix:
+    desc: Runs linter with auto-fix
+    cmds:
+      - go fmt ./...
+      - golangci-lint run --fix ./...

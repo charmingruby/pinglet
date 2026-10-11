@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,12 +23,8 @@ func main() {
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(
-		context.Background(),
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	)
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
 	log := logging.InitLogger()
@@ -41,67 +35,42 @@ func run() error {
 		return err
 	}
 
-	val := validator.New()
-
 	srv, router := httpx.NewServer(
 		cfg.Port,
-		val,
+		validator.New(),
 		cfg.IsAvailable,
 		cfg.InjectStatusCode,
 	)
-
-	if err := pinglet.New(router, cfg); err != nil {
-		log.Error("pinglet: error creating mod", "error", err)
-		return err
-	}
-
-	shutdownErrCh := make(chan error, 1)
-	go shutdown(ctx, log, shutdownErrCh, srv)
-
-	log.Info("server: running...", "port", cfg.Port)
+	pinglet.New(router, cfg)
 
 	if !cfg.IsAvailable {
 		log.Info("server: manual failure injection detected")
 	}
 
+	log.Info("server: running...", "port", cfg.Port)
+
+	errCh := make(chan error, 1)
+	go func() {
+		<-ctx.Done()
+		log.Info("shutdown: signal received, starting graceful shutdown...")
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+
+		errCh <- srv.Close(shutdownCtx)
+	}()
+
 	if err := srv.Start(); err != nil {
 		log.Error("server: start error", "error", err)
-
 		stop()
-		<-shutdownErrCh
 		return err
 	}
 
-	if err := <-shutdownErrCh; err != nil {
+	if err := <-errCh; err != nil {
 		log.Error("shutdown: shutdown error", "error", err)
 		return err
 	}
 
 	log.Info("shutdown: gracefully shutdown")
 	return nil
-}
-
-func shutdown(
-	ctx context.Context,
-	log *slog.Logger,
-	errCh chan error,
-	srv *httpx.Server,
-) {
-	<-ctx.Done()
-	log.Info("shutdown: signal received, starting graceful shutdown...")
-
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-
-	var err error
-
-	if closeErr := srv.Close(ctxTimeout); closeErr != nil {
-		if errors.Is(closeErr, context.DeadlineExceeded) {
-			closeErr = errors.New("http server: deadline exceeded, forcing shutdown")
-		}
-
-		err = errors.Join(err, closeErr)
-	}
-
-	errCh <- err
 }
